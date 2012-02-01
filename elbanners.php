@@ -2,10 +2,10 @@
 /*
 Plugin Name: EL Banners
 Plugin URI: http://english-learner.tk/el-banners-plugin/
-Description: This plugin allow you to create widgets which will show banners, links or any other code from specified folder into sidebar automatically
+Description: This plugin allow you to create widgets which will show banners, links or any other code from specified folder or file into sidebar automatically
 Author: english-learner
 Author URI: http://english-learner.tk/
-Version: 0.1
+Version: 0.2
 Disclaimer: Use at your own risk. No warranty expressed or implied is provided.
 
 Copyright 2011  english-learner  (email : englishhlearner@gmail.com)
@@ -76,24 +76,49 @@ class elbanners_widget extends WP_Widget
 		if(!empty($title))
 			echo $before_title . $title . $after_title;
 		$path = str_replace('\\', '/', $instance['banners_path']);
-		if($path[strlen($path) - 1] != '/')
-			$path .= '/';
+		$banners = array();
 		if(is_dir($path))
 		{
+			if($path[strlen($path) - 1] != '/')
+				$path .= '/';
 			if(($dh = @opendir($path)) !== false)
 			{
-				$banners = '';
 				while (($file = @readdir($dh)) !== false)
 					if($file != '.' && $file != '..')
 					{
 						$banner = @file_get_contents($path.$file);
 						if($banner !== false)
-							$banners .= str_replace('%_BANNER_%', $banner, $instance['banner']);
+							array_push($banners, $banner);
 					}
-				echo str_replace('%_BANNERS_%', $banners, $instance['container']);
 				@closedir($dh);
 			}
 		}
+		else
+		{
+			$f = @fopen($path, 'r');
+			if($f !== false)
+			{
+				$banner = '';
+				while(!feof($f))
+				{
+					$s = rtrim(fgets($f), "\r\n");
+					if(!empty($s))
+						$banner .= $s . "\n";
+					else if(!empty($banner))
+					{
+						array_push($banners, $banner);
+						$banner = '';
+					}
+				}
+				fclose($f);
+				if(!empty($banner))
+					array_push($banners, $banner);
+			}
+		}
+		$banners_html = '';
+		foreach($banners as $banner)
+			$banners_html .= str_replace('%_BANNER_%', $banner, $instance['banner']);
+		echo str_replace('%_BANNERS_%', $banners_html, $instance['container']);
 		echo $after_widget;
 	}
 
@@ -108,7 +133,6 @@ class elbanners_widget extends WP_Widget
 	function update($new_instance, $old_instance)
 	{
 		$instance = $old_instance;
-		$this->dump_to_log($new_instance);
 		foreach($this->elbanners_options as $key => $option)
 		{
 			if(!$option['html'])
